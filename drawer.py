@@ -1,5 +1,6 @@
 import cairo
 from gym import spaces
+import numpy as np
 
 MOVE_TO = 0
 LINE_TO = 1
@@ -10,6 +11,7 @@ def grey_sale(nums):
     ret = []
     for num in nums:
         ret.append(255 if num > 127 else 0)
+    return ret
 
 
 class Drawer:
@@ -17,6 +19,7 @@ class Drawer:
     draw_count: int = 0
     width: int
     height: int
+    state: np.array
 
     def __init__(self, width: int, height: int):
 
@@ -31,6 +34,8 @@ class Drawer:
         ctx.rectangle(0, 0, width, height)
         ctx.fill()
         ctx.set_source_rgba(0, 0, 0, 1)
+
+        self.state = self.get_image_data()
 
     def draw(self, action: [spaces.Discrete, spaces.Box]):
         draw_type = action[0]
@@ -51,13 +56,18 @@ class Drawer:
 
         ctx.stroke()
         self.draw_count += 1
+        self.state = self.get_image_data()
 
-    def get_rgba(self):
+    def get_image_data(self):
         i = 0
         content = self.surface.get_data()
         rgba = []
+        j = 0
         while i < len(content):
-            rgba.append(grey_sale((content[i], content[i + 1], content[i + 2], content[i + 3])))
+            # rgba.append(grey_sale((content[i], content[i + 1], content[i + 2], content[i + 3])))
+            j += 1
+            val = grey_sale([content[i]])
+            rgba.append(val[0])
             i += 4
         return rgba
 
