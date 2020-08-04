@@ -1,6 +1,7 @@
 import cairo
 from gym import spaces
 import numpy as np
+import math
 
 MOVE_TO = 0
 LINE_TO = 1
@@ -12,6 +13,14 @@ def grey_sale(nums):
     for num in nums:
         ret.append(255 if num > 127 else 0)
     return ret
+
+
+def get_action_type(n):
+    return int(round((n + 1) / 2 * 100) % 3)
+
+
+def map_to_01(n):
+    return (n + 1) / 2
 
 
 class Drawer:
@@ -38,18 +47,18 @@ class Drawer:
         self.state = self.get_image_data()
 
     def draw(self, action: [spaces.Discrete, spaces.Box]):
-        draw_type = action[0]
-        pts = action[1]
-        to_point = self.to_xy(pts[0])
+        draw_type = get_action_type(action[0])
+        to_point = self.to_xy(action[1], action[2])
         ctx = self.ctx
 
-        if draw_type is MOVE_TO:
+        if draw_type == MOVE_TO:
             ctx.move_to(to_point[0], to_point[1])
-        elif draw_type is LINE_TO:
+        elif draw_type == LINE_TO:
             ctx.line_to(to_point[0], to_point[1])
-        elif draw_type is CURVE_TO:
-            ctr1 = self.to_xy(pts[1])
-            ctr2 = self.to_xy(pts[2])
+        elif draw_type == CURVE_TO:
+            ctr1 = self.to_xy(action[3], action[4])
+            ctr2 = self.to_xy(action[5], action[6])
+            # print(ctr1, ctr2)
             ctx.curve_to(ctr1[0], ctr1[1], ctr2[0], ctr2[1], to_point[0], to_point[1])
         else:
             raise Exception("Not support render type " + str(draw_type))
@@ -74,5 +83,5 @@ class Drawer:
     def save_png(self, path: str):
         self.surface.write_to_png(path)
 
-    def to_xy(self, action: [float, float]) -> (int, int):
-        return self.width * action[0], self.height * action[1]
+    def to_xy(self, x, y) -> (int, int):
+        return self.width * map_to_01(x), self.height * map_to_01(y)
