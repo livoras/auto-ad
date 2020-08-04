@@ -11,12 +11,16 @@ from stable_baselines.common.env_checker import check_env
 
 spaces = gym.spaces
 
-action_space = spaces.Box(low=-1, high=1, shape=(7,), dtype=np.float)
+action_space = spaces.Box(low=0, high=1, shape=(7,), dtype=np.float)
 
 
 class AutoAodrawEnv(gym.Env):
     drawer: Drawer
     target_image_state: np.array
+
+    target_black_count = 0
+    draw_success_count = 0
+    draw_failed_count = 0
 
     def __init__(self, img: str):
         super(AutoAodrawEnv, self).__init__()
@@ -31,17 +35,27 @@ class AutoAodrawEnv(gym.Env):
         self.reset()
 
     def step(self, action: spaces.Discrete) -> (spaces.Box, np.float, bool, object):
+        print('action -> ', action[0])
         action_type = get_action_type(action[0])
+        print('action type -> ', action_type, 'count -> ', self.drawer.draw_count)
 
         if self.drawer.draw_count == 0 and action_type != MOVE_TO:
-            return self.get_obs(), -1, True, {}
+            return self.get_obs(), -100000, True, {}
         self.drawer.draw(action)
-        reward, done = self.get_reward()
-        return self.get_obs(), reward, False if (reward >= 0 and not done) else True, {}
+        reward = self.get_reward()
+        done = self.drawer.draw_count > 200
+        draw_count = max(self.drawer.draw_count, 1)
+        # r = self.draw_success_count / draw_count
+        print('-----> R', reward)
+        return self.get_obs(), reward, done, {}
 
     def reset(self):
         self.drawer = Drawer(self.width, self.height)
         self.init_img_data()
+        print('~~~~~~~~~~~`REST')
+        self.target_black_count = 0
+        self.draw_success_count = 0
+        self.draw_failed_count = 0
         return self.get_obs()
 
     def render(self, mode='human'):
@@ -63,12 +77,28 @@ class AutoAodrawEnv(gym.Env):
     def get_obs(self):
         return np.array(self.target_image_state + self.drawer.state)
 
-    def get_reward(self) -> (float, bool):
+    def get_reward(self):
+        tb, ds, df = self.get_pixel_count()
+        print(tb, ds, df)
+        self.target_black_count = tb
+        print('--->', ds, self.draw_success_count)
+        diff_ds = ds - self.draw_success_count
+        diff_df = df - self.draw_failed_count
+        is_done = self.draw_success_count == self.target_black_count
+        self.draw_success_count = ds
+        self.draw_failed_count = df
+        # reward = diff_ds - diff_df
+        return diff_ds if diff_ds > 0 else -100
+
+    def get_pixel_count(self) -> (float, bool):
         target_state = self.target_image_state
         current_state = self.drawer.state
         i = 0
+
         target_black_count = 0
         draw_success_count = 0
+        draw_failed_count = 0
+
         while i < len(target_state):
             is_target_black = target_state[i] == 0
             is_current_black = current_state[i] == 0
@@ -78,7 +108,7 @@ class AutoAodrawEnv(gym.Env):
 
             # if drawing over white
             if not is_target_black and is_current_black:
-                return -1, True
+                draw_failed_count += 1
 
             # drawing good
             if is_target_black and is_current_black:
@@ -86,10 +116,11 @@ class AutoAodrawEnv(gym.Env):
 
             i += 1
 
-        return (0, False) if target_black_count == 0 else (
-            (draw_success_count / target_black_count) / self.drawer.draw_count,
-            draw_success_count == target_black_count,
-        )
+        return target_black_count, draw_success_count, draw_failed_count
+        # return (0, False) if target_black_count == 0 else (
+        #     (draw_success_count / target_black_count) / self.drawer.draw_count,
+        #     draw_success_count == target_black_count,
+        # )
 
     def init_img_data(self):
         img = self.img
@@ -125,8 +156,16 @@ def learn():
     # action = env.action_space.sample()
     # obs, reward, done, _ = env.step(action)
 
+    count = 0
+
+    def callback(a, b):
+        nonlocal count
+        count += 1
+        if count % 10000 == 0:
+            model.save('OJBK.model')
+
     model = PPO2(MlpPolicy, env, verbose=1)
-    model.learn(total_timesteps=10000)
+    model.learn(total_timesteps=1000000, callback=callback)
 
     env.reset()
     for i in range(100):

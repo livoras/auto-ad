@@ -16,11 +16,14 @@ def grey_sale(nums):
 
 
 def get_action_type(n):
-    return int(round((n + 1) / 2 * 100) % 3)
+    try:
+        return int(round(n * 100) % 3)
+    except ValueError:
+        print("~~~~~~~~~~~~~~~", n, "~~~~~~~~~~~~~~")
 
 
 def map_to_01(n):
-    return (n + 1) / 2
+    return n
 
 
 class Drawer:
@@ -61,6 +64,7 @@ class Drawer:
             # print(ctr1, ctr2)
             ctx.curve_to(ctr1[0], ctr1[1], ctr2[0], ctr2[1], to_point[0], to_point[1])
         else:
+            print('THIS IS THE ACTION', action)
             raise Exception("Not support render type " + str(draw_type))
 
         ctx.stroke()
